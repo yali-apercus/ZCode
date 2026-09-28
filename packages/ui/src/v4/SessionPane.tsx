@@ -158,7 +158,9 @@ import {
   resolveConversationShareSelectionPanelVisible,
 } from "@/v4/conversationShareModePolicy.js";
 import { buildConversationTurnRenderUnits } from "@/v4/conversationTurnRenderUnits.js";
+import type { ConversationTurnRenderUnit } from "@/v4/conversationTurnRenderUnits.js";
 import { buildConversationTurnNavigatorItems } from "@/v4/conversationTurnNavigatorHelpers.js";
+import type { ConversationTurnNavigatorItem } from "@/v4/conversationTurnNavigatorHelpers.js";
 import { SessionPluginReferenceIconBoundary } from "@/v4/SessionPluginReferenceIconProvider.js";
 import {
   resolveConversationStatusPanelVariant,
@@ -390,6 +392,14 @@ const EMPTY_SUBAGENT_PROJECTION: NonNullable<ConversationSnapshot["subagents"]> 
 };
 
 const MAX_CONVERSATION_FILE_CHANGES_CACHE_ENTRIES = 20;
+
+// 分享派生链的稳定空引用：未激活分享（scope !== "partial"）时各派生值复用同一实例，
+// 避免流式期间每帧构建全量 units（实测 1200 行 ≈3ms/帧）以及新空容器引用击穿下游
+// memo 的 props 浅比较（specs/ui-session-share-derivation.md）。
+const EMPTY_SHARE_RENDER_UNITS: ConversationTurnRenderUnit[] = [];
+const EMPTY_SHARE_NAVIGATOR_ITEMS: ConversationTurnNavigatorItem[] = [];
+const EMPTY_SHARE_ROW_IDS: Set<number> = new Set();
+const EMPTY_SHARE_PRODUCT_TURN_IDS: string[] = [];
 
 function toComposerUiError(
   sessionId: string | null | undefined,
@@ -646,32 +656,41 @@ export function SessionPane({
     enabled: shareSelectionPanelVisible,
     onDismiss: dismissShareSelectionPanel,
   });
+  // 分享派生链仅在 shareActive 时构建（specs/ui-session-share-derivation.md）：
+  // 流式期间 rows.window 每帧换新引用，未门控时这条链每帧全量重算却被下游丢弃。
   const shareRenderUnits = useMemo(
-    () => buildConversationTurnRenderUnits(snapshot?.rows.window ?? []),
-    [snapshot?.rows.window],
+    () =>
+      shareActive
+        ? buildConversationTurnRenderUnits(snapshot?.rows.window ?? [])
+        : EMPTY_SHARE_RENDER_UNITS,
+    [shareActive, snapshot?.rows.window],
   );
   const shareItems = useMemo(
     () =>
-      buildConversationTurnNavigatorItems(shareRenderUnits, {
-        assistantEmptyPreview: intl.formatMessage({
-          id: "chat.turnNavigator.emptyAssistant",
-        }),
-        assistantRunningPreview: intl.formatMessage({
-          id: "chat.turnNavigator.runningAssistant",
-        }),
-        userFallbackPreview: intl.formatMessage({
-          id: "chat.turnNavigator.userFallback",
-        }),
-      }),
-    [intl, shareRenderUnits],
+      shareActive
+        ? buildConversationTurnNavigatorItems(shareRenderUnits, {
+            assistantEmptyPreview: intl.formatMessage({
+              id: "chat.turnNavigator.emptyAssistant",
+            }),
+            assistantRunningPreview: intl.formatMessage({
+              id: "chat.turnNavigator.runningAssistant",
+            }),
+            userFallbackPreview: intl.formatMessage({
+              id: "chat.turnNavigator.userFallback",
+            }),
+          })
+        : EMPTY_SHARE_NAVIGATOR_ITEMS,
+    [intl, shareActive, shareRenderUnits],
   );
   const eligibleShareItems = useMemo(
-    () => shareItems.filter((item) => !item.isRunning),
-    [shareItems],
+    () =>
+      shareActive ? shareItems.filter((item) => !item.isRunning) : EMPTY_SHARE_NAVIGATOR_ITEMS,
+    [shareActive, shareItems],
   );
   const eligibleShareRowIds = useMemo(
-    () => new Set(eligibleShareItems.map((item) => item.rowId)),
-    [eligibleShareItems],
+    () =>
+      shareActive ? new Set(eligibleShareItems.map((item) => item.rowId)) : EMPTY_SHARE_ROW_IDS,
+    [shareActive, eligibleShareItems],
   );
   useEffect(() => {
     if (!sessionId || !shareActive) return;
@@ -751,6 +770,7 @@ export function SessionPane({
     ],
   );
   const eligibleShareProductTurnIds = useMemo(() => {
+    if (!shareActive) return EMPTY_SHARE_PRODUCT_TURN_IDS;
     const rowsById = new Map((snapshot?.rows.window ?? []).map((row) => [row.rowId, row]));
     const seen = new Set<string>();
     return eligibleShareItems.flatMap((item) => {
@@ -759,7 +779,7 @@ export function SessionPane({
       seen.add(productTurnId);
       return [productTurnId];
     });
-  }, [eligibleShareItems, snapshot?.rows.window]);
+  }, [eligibleShareItems, shareActive, snapshot?.rows.window]);
   const sharePreflightCacheRef = useRef(new Map<string, ConversationShareTurnPreflightResult>());
   // 传输类失败会被按 turn 缓存成阻断项，仅靠选择变化无法再次触发 RPC；
   // 重试 token 变化时清缓存并重新发起，避免一次网络抖动把用户卡死在选择阶段。
