@@ -69,12 +69,14 @@ export interface ConversationTurnRenderUnit {
   workflowLaunch?: WorkflowLaunchMeta;
 }
 
-interface BuildConversationTurnRenderUnitsOptions {
+// 以下类型与函数仅导出给 conversationTurnRenderUnitsCached（逐轮复用构建器）复用，
+// 不属于本模块对 UI 的公共契约；语义必须与 buildConversationTurnRenderUnits 保持一体。
+export interface BuildConversationTurnRenderUnitsOptions {
   nowMs?: number;
   sessionPhase?: SessionPhase;
 }
 
-interface DraftTurnRenderUnit {
+export interface DraftTurnRenderUnit {
   key: string;
   turnId: string;
   header?: TurnHeaderRow;
@@ -229,7 +231,7 @@ function shouldForceOpenAbnormalHistory(
   return sessionPhase === "completedInterrupted" || sessionPhase === "error";
 }
 
-function materializeDraftUnit(
+export function materializeDraftUnit(
   draft: DraftTurnRenderUnit,
   index: number,
   total: number,
@@ -357,7 +359,7 @@ function materializeDraftUnit(
   };
 }
 
-function createDraftUnit(turnId: string): DraftTurnRenderUnit {
+export function createDraftUnit(turnId: string): DraftTurnRenderUnit {
   return {
     // cold snapshot 可能从同一 turn 的 assistant/tool 行中间截断，补到
     // turnHeader 后首个可见 rowId 会变化。虚拟列表 key 必须只依赖协议稳定的 turnId，
@@ -371,7 +373,7 @@ function createDraftUnit(turnId: string): DraftTurnRenderUnit {
   };
 }
 
-function shouldKeepRenderUnit(unit: ConversationTurnRenderUnit): boolean {
+export function shouldKeepRenderUnit(unit: ConversationTurnRenderUnit): boolean {
   // 隐形行清零后（投影不再产不可渲染 marker），任何工作行都可渲染；
   // 「哪些 marker 可渲染」不再是 UI 的判断。
   return (
@@ -385,7 +387,7 @@ function shouldKeepRenderUnit(unit: ConversationTurnRenderUnit): boolean {
   );
 }
 
-function normalizeRenderUnitPosition(
+export function normalizeRenderUnitPosition(
   unit: ConversationTurnRenderUnit,
   index: number,
   total: number,
@@ -439,20 +441,32 @@ export function buildConversationTurnRenderUnits(
   rows: readonly ConversationRow[],
   options: BuildConversationTurnRenderUnitsOptions = {},
 ): ConversationTurnRenderUnit[] {
-  const units: DraftTurnRenderUnit[] = [];
-  const unitByTurnId = new Map<string, DraftTurnRenderUnit>();
+  const { drafts } = groupRowsIntoDrafts(rows);
+  const materializedUnits = drafts.map((unit, index) =>
+    materializeDraftUnit(unit, index, drafts.length, options),
+  );
+  const keptUnits = materializedUnits.filter(shouldKeepRenderUnit);
+  return keptUnits.map((unit, index) =>
+    normalizeRenderUnitPosition(unit, index, keptUnits.length, options),
+  );
+}
 
+/** 按 turnId 把行折叠成物化前的草稿单元（物化的唯一分组实现，两处构建共用）。 */
+export function groupRowsIntoDrafts(rows: readonly ConversationRow[]): {
+  drafts: DraftTurnRenderUnit[];
+} {
+  const drafts: DraftTurnRenderUnit[] = [];
+  const draftByTurnId = new Map<string, DraftTurnRenderUnit>();
   const getOrCreateUnit = (turnId: string) => {
-    const existing = unitByTurnId.get(turnId);
+    const existing = draftByTurnId.get(turnId);
     if (existing) {
       return existing;
     }
     const unit = createDraftUnit(turnId);
-    units.push(unit);
-    unitByTurnId.set(turnId, unit);
+    drafts.push(unit);
+    draftByTurnId.set(turnId, unit);
     return unit;
   };
-
   for (const row of rows) {
     const unit = getOrCreateUnit(row.turnId);
     if (isTurnHeaderRow(row)) {
@@ -470,12 +484,5 @@ export function buildConversationTurnRenderUnits(
     }
     unit.assistantWorkRows.push(row);
   }
-
-  const materializedUnits = units.map((unit, index) =>
-    materializeDraftUnit(unit, index, units.length, options),
-  );
-  const keptUnits = materializedUnits.filter(shouldKeepRenderUnit);
-  return keptUnits.map((unit, index) =>
-    normalizeRenderUnitPosition(unit, index, keptUnits.length, options),
-  );
+  return { drafts };
 }

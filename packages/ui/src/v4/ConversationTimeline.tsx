@@ -42,10 +42,8 @@ import {
   getConversationContentWidthClassName,
   getConversationStatusPanelOffsetClassName,
 } from "@/v4/conversationLayout.js";
-import {
-  buildConversationTurnRenderUnits,
-  type ConversationTurnRenderUnit,
-} from "@/v4/conversationTurnRenderUnits.js";
+import { type ConversationTurnRenderUnit } from "@/v4/conversationTurnRenderUnits.js";
+import { createConversationTurnRenderUnitsBuilder } from "@/v4/conversationTurnRenderUnitsCached.js";
 import {
   resolveConversationTurnNavigatorActiveQueryRowId,
   resolveConversationTurnNavigatorHydrationRetryDelayMs,
@@ -414,9 +412,16 @@ function ConversationTimelineImpl({
     return () => observer.disconnect();
   }, [hasHeaderSlot]);
   const [liveNowMs, setLiveNowMs] = useState(() => Date.now());
+  // 逐轮复用构建器（specs/ui-render-units-reuse.md）：流式帧和 1s 时钟 tick 都会换掉
+  // rows/liveNowMs 引用，无缓存实现每帧全量物化（1200 行 ≈3ms、19200 行 ≈48ms）；
+  // 复用后未变化的轮保持 unit 引用不变，memo 与下游 useMemo 得以命中。
+  const renderUnitsBuilderRef = useRef<ReturnType<
+    typeof createConversationTurnRenderUnitsBuilder
+  > | null>(null);
+  renderUnitsBuilderRef.current ??= createConversationTurnRenderUnitsBuilder();
   const renderUnits = useMemo(
     () =>
-      buildConversationTurnRenderUnits(rows, {
+      renderUnitsBuilderRef.current!(rows, {
         nowMs: liveNowMs,
         sessionPhase,
       }),
