@@ -76,7 +76,7 @@ export interface BuildConversationTurnRenderUnitsOptions {
   sessionPhase?: SessionPhase;
 }
 
-export interface DraftTurnRenderUnit {
+interface DraftTurnRenderUnit {
   key: string;
   turnId: string;
   header?: TurnHeaderRow;
@@ -359,7 +359,7 @@ export function materializeDraftUnit(
   };
 }
 
-export function createDraftUnit(turnId: string): DraftTurnRenderUnit {
+function createDraftUnit(turnId: string): DraftTurnRenderUnit {
   return {
     // cold snapshot 可能从同一 turn 的 assistant/tool 行中间截断，补到
     // turnHeader 后首个可见 rowId 会变化。虚拟列表 key 必须只依赖协议稳定的 turnId，
