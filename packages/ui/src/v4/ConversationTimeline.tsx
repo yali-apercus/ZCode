@@ -919,6 +919,10 @@ function ConversationTimelineImpl({
   const syncTurnNavigatorViewport = useCallback(
     (element: HTMLDivElement) => {
       syncMessageLayerMask(element);
+      // 补齐历史期间跳过逐行测量：每次 chunk commit 都会经 scroll/RO 触发本函数，
+      // 对 800+ 行 DOM 反复强制布局（实测单次冷开 ~550ms rect 自耗时）。
+      // loadingOlder 翻转后的兜底同步见下方 useLayoutEffect。
+      if (loadOlderRef.current.loadingOlder) return;
       const viewportRect = element.getBoundingClientRect();
       const queryPositions: ConversationTurnNavigatorQueryPosition[] = [];
       for (const rowElement of element.querySelectorAll<HTMLElement>("[data-row-id]")) {
@@ -951,6 +955,18 @@ function ConversationTimelineImpl({
     },
     [syncMessageLayerMask],
   );
+
+  // 补齐结束后的兜底同步：backfill 期间 skip 掉的视口测量在这里补跑。必须延迟到
+  // 独立任务里执行——若挂在 useLayoutEffect 同步跑，全量逐行测量会把最后一次
+  // chunk commit 的渲染任务重新拉长成秒级长任务（specs/ui-load-all-older-chunked-commit.md）。
+  useLayoutEffect(() => {
+    if (loadingOlder) return;
+    const timer = window.setTimeout(() => {
+      const element = scrollRef.current;
+      if (element) syncTurnNavigatorViewport(element);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadingOlder, syncTurnNavigatorViewport]);
 
   useLayoutEffect(() => {
     const scrollElement = scrollRef.current;

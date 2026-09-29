@@ -252,6 +252,10 @@ export function shouldAutoLoadIncompleteLeadingTurn(
  * 窗口首行之前的行、去重后前插；顺序键 = rowId 升序（全序保证）。
  * 返回 null 表示无可并入行（窗口无变化，调用方不换引用）。
  */
+// loadAllOlder 分批提交的片大小：每片一次 setState/notify，片间让出主线程，
+// 避免补齐全史时合成单个秒级渲染长任务（specs/ui-load-all-older-chunked-commit.md）。
+const LOAD_ALL_OLDER_COMMIT_ROWS = 150;
+
 function mergeOlderRows(
   window: readonly ConversationRow[],
   fetched: readonly ConversationRow[],
@@ -1152,16 +1156,63 @@ export class ConversationProjectionStore {
         this.turnNavigatorHydrationTerminal = result;
         return result;
       }
-      const window = mergeOlderRows(current.rows.window, olderRows);
-      if (window === null) return stale(initialLogEpoch);
-      committed = true;
-      this.setState({
-        loadingOlder: false,
-        snapshot: { ...current, rows: { ...current.rows, window } },
-      });
+      // 分批提交（specs/ui-load-all-older-chunked-commit.md）：一次性提交会把全部
+      // 补拉行合成一个 ~1.5s 的同步渲染长任务（真机实测 2089 parts 会话）。注意
+      // rowsRange 可能无视 limit 单页返回全部行，切片必须在提交侧按行数硬切，
+      // 不依赖页边界；按抓取顺序（新→旧）逐片 prepend，片间让出主线程。
+      let expectedHeadRowId = initialBeforeRowId;
+      let buffer: ConversationRow[] = [];
+      let chunksCommitted = 0;
+      let lastWindowLength = current.rows.window.length;
+      const commitChunk = (
+        chunk: ConversationRow[],
+        isFinal: boolean,
+      ): ReturnType<typeof stale> | null => {
+        const currentNow = this.state.snapshot;
+        if (
+          !currentNow ||
+          currentNow.logEpoch !== initialLogEpoch ||
+          currentNow.rows.window[0]?.rowId !== expectedHeadRowId
+        ) {
+          return stale(initialLogEpoch);
+        }
+        const window = mergeOlderRows(currentNow.rows.window, chunk);
+        if (window === null) return stale(initialLogEpoch);
+        this.setState({
+          ...(isFinal ? { loadingOlder: false as boolean } : {}),
+          snapshot: { ...currentNow, rows: { ...currentNow.rows, window } },
+        });
+        if (isFinal) committed = true;
+        expectedHeadRowId = window[0]!.rowId;
+        lastWindowLength = window.length;
+        chunksCommitted += 1;
+        return null;
+      };
+      for (const pageRows of pages) {
+        buffer = buffer.concat(pageRows);
+        while (buffer.length >= LOAD_ALL_OLDER_COMMIT_ROWS) {
+          const chunk = buffer.slice(0, LOAD_ALL_OLDER_COMMIT_ROWS);
+          buffer = buffer.slice(LOAD_ALL_OLDER_COMMIT_ROWS);
+          const staleResult = commitChunk(chunk, false);
+          if (staleResult) return staleResult;
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        }
+      }
+      if (buffer.length > 0) {
+        const staleResult = commitChunk(buffer, true);
+        if (staleResult) return staleResult;
+      } else {
+        // 全部行恰好整片提交完毕：补一次终态收口。
+        const currentNow = this.state.snapshot;
+        if (currentNow && currentNow.logEpoch === initialLogEpoch) {
+          committed = true;
+          this.setState({ loadingOlder: false });
+        }
+      }
       logger.debug("[v4-store] 完整问题目录历史 rows 补拉完成", {
-        loadedRows: window.length,
+        loadedRows: lastWindowLength,
         pages: pages.length,
+        chunks: chunksCommitted,
         sessionId,
       });
       const result = {
