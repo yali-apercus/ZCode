@@ -172,6 +172,8 @@ export type ZCodeAgentMcpServer =
       isolation?: "session" | "workspace";
       protocolVersion?: "legacy" | "auto" | "2026-07-28";
       timeoutMs?: number;
+      /** 按代理的暴露范围 allowlist；缺省全可见，"main" 指主 agent（见 specs/mcp-skill-agent-scoping.md）。 */
+      agents?: string[];
     }
   | {
       name: string;
@@ -182,6 +184,8 @@ export type ZCodeAgentMcpServer =
       headers: Array<{ name: string; value: string }>;
       oauth?: McpOAuthConfig;
       timeoutMs?: number;
+      /** 按代理的暴露范围 allowlist；缺省全可见，"main" 指主 agent（见 specs/mcp-skill-agent-scoping.md）。 */
+      agents?: string[];
     };
 
 export interface McpClientCredentialsOAuthConfig {
@@ -305,6 +309,9 @@ export function convertToZCodeAgentMcpServer(
       ...(isMcpProtocolVersion(config.protocolVersion)
         ? { protocolVersion: config.protocolVersion }
         : {}),
+      ...(normalizeMcpAgentExposure(config.agents)
+        ? { agents: normalizeMcpAgentExposure(config.agents) }
+        : {}),
     };
   } else if (config.url && inferredType) {
     const normalizedType: "http" | "sse" = inferredType === "sse" ? "sse" : "http";
@@ -326,6 +333,9 @@ export function convertToZCodeAgentMcpServer(
       ...(isMcpProtocolVersion(config.protocolVersion)
         ? { protocolVersion: config.protocolVersion }
         : {}),
+      ...(normalizeMcpAgentExposure(config.agents)
+        ? { agents: normalizeMcpAgentExposure(config.agents) }
+        : {}),
     };
   }
   return null;
@@ -341,6 +351,21 @@ function isMcpIsolation(value: unknown): value is "session" | "workspace" {
 
 function isMcpProtocolVersion(value: unknown): value is "legacy" | "auto" | "2026-07-28" {
   return value === "legacy" || value === "auto" || value === "2026-07-28";
+}
+
+/**
+ * 按代理暴露范围（agents allowlist）的宽松配置校验：接受非空字符串数组，返回剔除空白项
+ * 后的规范化列表；空数组、非数组或含非字符串项整体视为未声明（与其他字段"非法即缺省丢弃"
+ * 的守卫语义一致），避免半合法配置造成部分代理可见的歧义。
+ */
+function normalizeMcpAgentExposure(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const agents = value
+    .filter((agent): agent is string => typeof agent === "string")
+    .map((agent) => agent.trim())
+    .filter((agent) => agent.length > 0);
+  if (agents.length === 0 || agents.length !== value.length) return undefined;
+  return agents;
 }
 
 function isValidMcpOAuthConfig(value: unknown): value is McpOAuthConfig {

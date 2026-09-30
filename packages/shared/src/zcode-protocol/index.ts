@@ -636,6 +636,9 @@ export const zcodeProtocolMcpServerSchema = z.union([
       isolation: z.enum(["session", "workspace"]).optional(),
       protocolVersion: z.enum(["legacy", "auto", "2026-07-28"]).optional(),
       timeoutMs: z.number().int().positive().optional(),
+      // 按代理暴露范围 allowlist；"main" 指主 agent。空名单视为非法（min(1)），
+      // 避免"所有代理都不可见"的歧义配置静默存在。
+      agents: z.array(nonEmptyString).min(1).optional(),
     })
     .strict(),
   z
@@ -648,6 +651,7 @@ export const zcodeProtocolMcpServerSchema = z.union([
       isolation: z.enum(["session", "workspace"]).optional(),
       protocolVersion: z.enum(["legacy", "auto", "2026-07-28"]).optional(),
       timeoutMs: z.number().int().positive().optional(),
+      agents: z.array(nonEmptyString).min(1).optional(),
     })
     .strict(),
 ]);

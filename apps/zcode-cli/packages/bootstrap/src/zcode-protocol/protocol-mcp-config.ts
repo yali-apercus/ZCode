@@ -23,6 +23,9 @@ export function protocolMcpServersToRuntimeMcpConfig(
         ...(server.protocolVersion !== undefined
           ? { protocolVersion: server.protocolVersion }
           : {}),
+        // 按代理暴露范围 allowlist 必须随覆盖链路下传，否则 UI 配置的 agents 在
+        // 真实 runtime 侧失效，主 agent 又开始背起本应只给子代理的工具定义。
+        ...(server.agents !== undefined ? { agents: server.agents } : {}),
       };
       continue;
     }
@@ -35,6 +38,7 @@ export function protocolMcpServersToRuntimeMcpConfig(
       ...(server.timeoutMs !== undefined ? { timeoutMs: server.timeoutMs } : {}),
       ...(server.isolation !== undefined ? { isolation: server.isolation } : {}),
       ...(server.protocolVersion !== undefined ? { protocolVersion: server.protocolVersion } : {}),
+      ...(server.agents !== undefined ? { agents: server.agents } : {}),
     };
   }
 

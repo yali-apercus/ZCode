@@ -20,6 +20,12 @@ export interface McpServerConfigBase {
   /** 仅限宿主生成，公共配置 schema 会拒绝该字段。 */
   source?: McpServerRuntimeSource;
   timeoutMs?: number;
+  /**
+   * 按代理的暴露范围 allowlist；缺省全可见，"main" 指主 agent，
+   * 其余按 AgentProfile.name 匹配（specs/mcp-skill-agent-scoping.md）。
+   * 只约束工具定义注入：server 连接仍由主 runtime 持有，供子代理借用。
+   */
+  agents?: readonly string[];
 }
 
 export interface McpClientCredentialsOAuthConfig {

@@ -53,6 +53,12 @@ export interface SkillMetadata {
   source: SkillSource;
   safeToAutoLoad: boolean;
   frontmatterKeys: string[];
+  /**
+   * 按代理的暴露范围 allowlist（SKILL.md frontmatter `agents:`，逗号分隔）；
+   * 缺省全可见，"main" 指主 agent，其余按 AgentProfile.name 匹配。
+   * 只约束目录注入与子代理 loadSkill（specs/mcp-skill-agent-scoping.md）。
+   */
+  agents?: readonly string[];
   policy?: SkillPolicy;
 }
 

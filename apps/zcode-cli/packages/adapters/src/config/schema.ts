@@ -48,6 +48,8 @@ const mcpServerBaseSchema = {
   protocolVersion: z.enum(["auto", "legacy", "2026-07-28"]).optional(),
   enabled: z.boolean().optional(),
   timeoutMs: positiveNumberSchema.optional(),
+  // 按代理暴露范围 allowlist（"main" 指主 agent）；strict 白名单漏掉会整 server 被丢。
+  agents: z.array(z.string().min(1)).min(1).optional(),
 };
 
 const mcpOAuthSchema = z.union([
