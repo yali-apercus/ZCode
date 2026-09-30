@@ -5,6 +5,7 @@
 import type { SkillLoadOutcome, SkillMetadata } from "@zcode/contracts";
 import type { ContextSection } from "../types.js";
 import { estimateTokens } from "../utils.js";
+import { isSkillExposedToAgent } from "../../skills/agent-visibility.js";
 
 const DEFAULT_SKILL_METADATA_BUDGET = 20_000;
 const MAX_DESCRIPTION_CHARS = 250;
@@ -12,15 +13,23 @@ const MAX_DESCRIPTION_CHARS = 250;
 interface SkillsSectionOptions {
   outcome: SkillLoadOutcome;
   metadataBudget?: number;
+  /**
+   * 当前 context 的代理暴露身份：主 agent 传 "main"，runner 子代理传 profile.name；
+   * 未提供（workflow 子代理等无身份场景）时，声明了 `agents` 的 skill 一律隐藏（fail-closed）。
+   */
+  agentName?: string;
 }
 
 export function buildSkillsSection(options: SkillsSectionOptions): ContextSection | null {
-  if (options.outcome.skills.length === 0) {
+  const visibleSkills = options.outcome.skills.filter((skill) =>
+    isSkillExposedToAgent(skill, options.agentName),
+  );
+  if (visibleSkills.length === 0) {
     return null;
   }
 
   const content = buildSkillsContent(
-    options.outcome.skills,
+    visibleSkills,
     options.metadataBudget ?? DEFAULT_SKILL_METADATA_BUDGET,
   );
 

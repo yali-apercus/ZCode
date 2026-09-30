@@ -320,3 +320,9 @@ export {
 } from "../subagent/index.js";
 export type { AgentProfile, ExploreSubagentRuntimeRequest } from "../subagent/index.js";
 export { registerMcpTools } from "../mcp/index.js";
+// 运行时方法经 deps 缝隙消费的 MCP 暴露判定；子代理路径直接从
+// ../mcp/agent-exposure.js 导入，不在此重复 re-export（避免 knip unused-export）。
+export {
+  MAIN_AGENT_EXPOSURE_NAME,
+  filterToolsExposedToAgent,
+} from "../mcp/agent-exposure.js";

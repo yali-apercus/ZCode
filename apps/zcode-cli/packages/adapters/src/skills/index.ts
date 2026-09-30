@@ -24,6 +24,9 @@ const SAFE_FRONTMATTER_KEYS = new Set([
   "when_to_use",
   "license",
   "metadata",
+  // agents 是本仓库的暴露范围控制字段（specs/mcp-skill-agent-scoping.md），
+  // 不入白名单会把带该字段的 skill 翻成 safeToAutoLoad: false。
+  "agents",
 ]);
 const DEFAULT_MAX_SKILL_BYTES = 100_000;
 const MAX_PLUGIN_MANIFEST_SEARCH_DEPTH = 5;
@@ -222,6 +225,7 @@ export class NodeSkillAdapter implements SkillPort {
       name,
       description,
       whenToUse: parseScalar(parsed.values.when_to_use),
+      agents: parseAgentExposureList(parseScalar(parsed.values.agents)),
       ...pluginAlias,
       path,
       directory: dirname(path),
@@ -414,6 +418,21 @@ function parseScalar(value: string | undefined): string | undefined {
     return trimmed.slice(1, -1).trim();
   }
   return trimmed;
+}
+
+/**
+ * agents allowlist（SKILL.md frontmatter `agents:`）：第一版仅支持逗号分隔标量，
+ * 如 `agents: main, researcher`。空白项剔除；空名单视为未声明（全可见），
+ * 与宽松配置层"非法即缺省丢弃"的守卫语义一致。不做 `- item` 列表解析——
+ * 手写扁平解析器只消费标量，列表行会留在缩进行中被跳过。
+ */
+function parseAgentExposureList(value: string | undefined): string[] | undefined {
+  if (value === undefined) return undefined;
+  const agents = value
+    .split(",")
+    .map((agent) => agent.trim())
+    .filter((agent) => agent.length > 0);
+  return agents.length > 0 ? agents : undefined;
 }
 
 function matchesSkillRequest(skill: SkillMetadata, requestName: string): boolean {

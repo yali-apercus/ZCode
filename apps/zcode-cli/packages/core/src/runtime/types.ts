@@ -233,6 +233,12 @@ export interface AgentRuntimeConfig {
   language?: string;
   outputStyle?: OutputStylePromptConfig;
   agentName?: string; // Default: "zcode-agent"
+  /**
+   * agents allowlist 的暴露身份（specs/mcp-skill-agent-scoping.md）。与展示用
+   * agentName 分离：runner 子代理传 profile.name（agentName 是 "zcode-<type>" 展示名），
+   * 主 agent 与 workflow 子代理缺省——缺省时声明了 `agents` 的 skill 全部隐藏。
+   */
+  agentExposureName?: string;
   workingDirectory?: string; // Required for context builder
   /**
    * 调用方传入的实际工作区路径表示，用于 session 持久化与本地身份恢复。

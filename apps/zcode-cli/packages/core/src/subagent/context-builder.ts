@@ -22,6 +22,8 @@ export interface SubagentContextBuilderConfig {
   model?: Model;
   skillMetadataBudget?: number;
   skills?: ContextBuilderConfig["skills"];
+  /** agents allowlist 暴露身份；缺省时声明了 `agents` 的 skill 全部隐藏。 */
+  agentExposureName?: string;
   userInstructions?: ContextBuilderConfig["userInstructions"];
 }
 
@@ -153,6 +155,7 @@ function buildSubagentContextSections(config: SubagentContextBuilderConfig): Con
     const skillsSection = buildSkillsSection({
       outcome: config.skills,
       metadataBudget: config.skillMetadataBudget,
+      agentName: config.agentExposureName,
     });
     if (skillsSection) {
       sections.push(skillsSection);

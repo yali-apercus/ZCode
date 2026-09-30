@@ -4,7 +4,12 @@ import {
   ZCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY,
   ZCODE_PLUGIN_ID_ENV_KEY,
 } from "@zcode/shared";
-import { registerMcpTools, traceContextToLogContext } from "../deps.js";
+import {
+  filterToolsExposedToAgent,
+  MAIN_AGENT_EXPOSURE_NAME,
+  registerMcpTools,
+  traceContextToLogContext,
+} from "../deps.js";
 import type { McpConnectionSnapshot, McpServerConfig, TraceContext } from "../deps.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 
@@ -135,7 +140,14 @@ export async function initializeMcp(
 
   try {
     const snapshot = await startup;
-    const registered = registerMcpTools(this.registry, mcpPort, snapshot.tools, {
+    // agents allowlist：主 agent 只注册暴露给 "main" 的 server 工具，未暴露的不进请求的
+    // tools 数组。连接快照（snapshot.tools）保持完整，子代理借用判定在 resolveSubagentMcpAccess。
+    const mainVisibleTools = filterToolsExposedToAgent(
+      snapshot.tools,
+      this.config.mcp?.servers ?? {},
+      MAIN_AGENT_EXPOSURE_NAME,
+    );
+    const registered = registerMcpTools(this.registry, mcpPort, mainVisibleTools, {
       allowedTools: this.config.toolAllowlist,
       disallowedTools: this.config.toolDisallowlist,
       officialCuaServerNames: computeOfficialCuaServerNames(
@@ -151,6 +163,7 @@ export async function initializeMcp(
       event: "mcp.tools.registered",
       module: "core.runtime",
       registeredToolCount: registered.length,
+      mainHiddenToolCount: snapshot.tools.length - mainVisibleTools.length,
       serverCount,
       status: "completed",
     });

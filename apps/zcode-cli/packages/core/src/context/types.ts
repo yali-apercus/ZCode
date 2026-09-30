@@ -111,6 +111,11 @@ export interface ContextBuilderConfig {
   memoryRoot?: string;
   memoryIndexContent?: string;
   skills?: SkillLoadOutcome;
+  /**
+   * agents allowlist 的暴露身份（specs/mcp-skill-agent-scoping.md）：
+   * 主 agent 为 "main"，runner 子代理为 profile.name；缺省时声明了 `agents` 的 skill 全部隐藏。
+   */
+  agentExposureName?: string;
   agentProfiles?: readonly AgentProfile[];
   embeddedSearchEnabled?: boolean;
   skillMetadataBudget?: number;

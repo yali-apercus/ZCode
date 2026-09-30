@@ -4,6 +4,7 @@ import {
   traceContextToLogContext,
   createContextBuilder,
   createSubagentContextBuilder,
+  MAIN_AGENT_EXPOSURE_NAME,
 } from "../deps.js";
 import type {
   Model,
@@ -115,6 +116,9 @@ export function createContextBuilderFromSnapshot(
       model: options.model,
       skillMetadataBudget: this.config.skillMetadataBudget,
       skills: this.skillLoadOutcome,
+      // runner 子代理由创建方写入 profile.name；workflow 子代理缺省，
+      // 声明了 agents 的 skill 对其一律隐藏（fail-closed）。
+      agentExposureName: this.config.agentExposureName,
       userInstructions: this.config.subagentContext.userInstructions,
     });
   }
@@ -130,6 +134,13 @@ export function createContextBuilderFromSnapshot(
     memoryIndexContent: options.memoryIndexContent,
     memoryRoot,
     skills: this.skillLoadOutcome,
+    // 暴露身份：显式传入优先（runner 子代理 = profile.name）。workflowActor 子代理是
+    // 独立代理，用 actor 自己的名字匹配 allowlist，匿名（无 name）时保持 fail-closed
+    // （限定 skill 一律隐藏）；其余走主 builder 分支的 runtime 即主 agent，缺省 "main"。
+    agentExposureName:
+      this.config.agentExposureName ??
+      this.config.workflowActor?.name ??
+      (this.config.workflowActor ? undefined : MAIN_AGENT_EXPOSURE_NAME),
     agentProfiles: this.config.subagents?.profiles,
     embeddedSearchEnabled: resolveRuntimeEmbeddedSearchEnabled(this),
     skillMetadataBudget: this.config.skillMetadataBudget,

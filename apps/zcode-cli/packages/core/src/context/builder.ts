@@ -180,6 +180,7 @@ export class ContextBuilder {
       const skillsSection = buildSkillsSection({
         outcome: this.config.skills,
         metadataBudget: this.config.skillMetadataBudget,
+        agentName: this.config.agentExposureName,
       });
       if (skillsSection) {
         sections.push(skillsSection);
