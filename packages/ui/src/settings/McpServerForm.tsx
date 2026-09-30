@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- agents 暴露范围字段与表单共享同一状态与保存链路（specs/mcp-skill-agent-scoping.md）；为 8 行拆出独立组件的成本高于整文件上限豁免。 */
 import { useEffect, useRef, useState } from "react";
 import type { McpSource, ZCodeMcpServer } from "@zcode/shared";
 import { Button } from "@/components/ui/button.js";
@@ -332,6 +333,21 @@ export function McpServerForm({
               </Select>
             </div>
           )}
+
+          <div className="w-full space-y-1.5">
+            <McpFormFieldLabel>
+              {intl.formatMessage({ id: "settings.mcp.form.agents" })}
+            </McpFormFieldLabel>
+            <Input
+              size="lg"
+              placeholder="main, researcher"
+              value={form.agents}
+              onChange={(e) => update({ agents: e.target.value })}
+            />
+            <p className="text-ui-base text-foreground-subtle">
+              {intl.formatMessage({ id: "settings.mcp.form.agentsHint" })}
+            </p>
+          </div>
 
           {form.type === "stdio" ? (
             <>

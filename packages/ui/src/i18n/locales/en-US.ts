@@ -2663,6 +2663,9 @@ const enUS: Record<string, string> = {
   "settings.mcp.form.protocolVersion.auto": "Auto (recommended)",
   "settings.mcp.form.protocolVersion.legacy": "Legacy compatibility",
   "settings.mcp.form.protocolVersion.modern": "v2",
+  "settings.mcp.form.agents": "Visible agents (optional)",
+  "settings.mcp.form.agentsHint":
+    "Comma-separated agent allowlist: only the listed main agent (\"main\") or subagents (matched by agent name) will see this server's tool definitions in their context. Leave empty to keep it visible to all agents.",
   "settings.mcp.form.type.stdio": "stdio (local command)",
   "settings.mcp.form.type.sse": "SSE (Server-Sent Events)",
   "settings.mcp.form.command": "Command",

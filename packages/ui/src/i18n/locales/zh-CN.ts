@@ -2491,6 +2491,9 @@ const zhCN: Record<string, string> = {
   "settings.mcp.form.protocolVersion.auto": "自动（推荐）",
   "settings.mcp.form.protocolVersion.legacy": "兼容旧版",
   "settings.mcp.form.protocolVersion.modern": "v2",
+  "settings.mcp.form.agents": "可见代理（可选）",
+  "settings.mcp.form.agentsHint":
+    "逗号分隔的代理名单：只有名单内的主 agent（main）或子代理（按代理名称匹配）会在上下文中看到该 server 的工具定义。留空表示全部可见。",
   "settings.mcp.form.type.stdio": "stdio（本地命令）",
   "settings.mcp.form.type.sse": "SSE（Server-Sent Events）",
   "settings.mcp.form.command": "命令",

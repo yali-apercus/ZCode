@@ -19,6 +19,8 @@ export interface FormState {
   timeoutMs: string;
   oauth?: string;
   protocolVersion: string;
+  /** agents allowlist 的逗号分隔文本；空串 = 未限制（全代理可见）。 */
+  agents: string;
 }
 
 export const EMPTY_FORM: FormState = {
@@ -34,6 +36,7 @@ export const EMPTY_FORM: FormState = {
   timeoutMs: "",
   oauth: "",
   protocolVersion: "",
+  agents: "",
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -67,6 +70,7 @@ export function serverToForm(server: ZCodeMcpServer): FormState {
     // 非法枚举值归一为未设置（等价 auto），与 shared DTO 的 isMcpProtocolVersion
     // 静默丢弃行为对齐；否则 config 里的手滑值会让协议版本下拉显示空白。
     protocolVersion: isMcpProtocolVersion(cfg.protocolVersion) ? cfg.protocolVersion : "",
+    agents: readAgentsText(cfg.agents),
   };
 }
 
@@ -91,6 +95,7 @@ export function formToConfig(form: FormState): McpServerConfig {
       ...(form.protocolVersion
         ? { protocolVersion: form.protocolVersion as McpServerConfig["protocolVersion"] }
         : {}),
+      ...parseAgentsText(form.agents),
     };
   }
 
@@ -121,7 +126,27 @@ export function formToConfig(form: FormState): McpServerConfig {
     ...(form.protocolVersion
       ? { protocolVersion: form.protocolVersion as McpServerConfig["protocolVersion"] }
       : {}),
+    ...parseAgentsText(form.agents),
   };
+}
+
+/**
+ * agents allowlist 的表单 ↔ 配置映射（specs/mcp-skill-agent-scoping.md）。
+ * FormState 用逗号分隔文本；四个映射函数（serverToForm/formToConfig/formToJsonDraft/
+ * jsonDraftToForm）必须同步覆盖，漏掉任一侧都会在保存往返中被静默丢弃。
+ */
+function readAgentsText(value: unknown): string {
+  return Array.isArray(value)
+    ? value.filter((agent): agent is string => typeof agent === "string").join(", ")
+    : "";
+}
+
+function parseAgentsText(value: string): { agents?: string[] } {
+  const agents = value
+    .split(",")
+    .map((agent) => agent.trim())
+    .filter((agent) => agent.length > 0);
+  return agents.length > 0 ? { agents } : {};
 }
 
 function parseTimeoutMs(value: string): number | undefined {
@@ -207,6 +232,7 @@ export function jsonDraftToForm(jsonText: string, fallback: FormState): FormStat
     protocolVersion: isMcpProtocolVersion(normalizedConfig.protocolVersion)
       ? normalizedConfig.protocolVersion
       : "",
+    agents: readAgentsText(normalizedConfig.agents),
   };
 }
 
